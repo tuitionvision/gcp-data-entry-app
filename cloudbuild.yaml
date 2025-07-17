@@ -1,0 +1,35 @@
+# This file defines the CI/CD pipeline for Google Cloud Build.
+
+steps:
+# Step 1: Build the container image
+# This step uses the standard Docker builder to execute 'docker build'.
+# - 't' tags the image with its future location in Artifact Registry.
+# - We use built-in substitutions: $PROJECT_ID for your project ID and $SHORT_SHA for the unique git commit ID.
+# - '.' tells Docker to use the Dockerfile in the current directory.
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/data-entry-app-repo/data-entry-app:$SHORT_SHA', '.']
+
+# Step 2: Push the container image to Artifact Registry
+# This step pushes the image we just built.
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/data-entry-app-repo/data-entry-app:$SHORT_SHA']
+
+# Step 3: Deploy the container image to Cloud Run
+# This step uses the gcloud builder to run the deploy command.
+# It updates our service to use the new image, identified by its commit SHA tag.
+# This will fix the "Image not found" error from our Terraform step.
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: gcloud
+  args:
+  - 'run'
+  - 'deploy'
+  - 'data-entry-app-service' # The name of our Cloud Run service from main.tf
+  - '--image'
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/data-entry-app-repo/data-entry-app:$SHORT_SHA'
+  - '--region'
+  - 'us-central1'
+
+# This specifies the image that will be created by this build.
+# It allows other systems, like Google's Binary Authorization, to know what was built.
+images:
+- 'us-central1-docker.pkg.dev/$PROJECT_ID/data-entry-app-repo/data-entry-app:$SHORT_SHA'
